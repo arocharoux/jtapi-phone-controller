@@ -1,0 +1,11 @@
+{
+  "name": "control_probe",
+  "description": "Inspect the configured target and issue an idempotent disconnect without placing a call.",
+  "timeout_seconds": 90,
+  "commands": [
+    {"cmd": "inspect", "address_timeout": "15"},
+    {"cmd": "disconnect"}
+  ],
+  "expect_status": "completed",
+  "expect_states": ["IDLE", "DISCONNECTED"]
+}

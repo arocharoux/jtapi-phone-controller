@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `scenarios/control_probe.json` for a no-call JTAPI command-path check using `inspect` plus idempotent `disconnect`.
+
+### Changed
+
+- Updated public validation notes to show live-tested Cisco 8875, Cisco 8811, and Cisco Jabber/CSF targets.
+- Clarified that the CUCM application user must be allowed to control each target device, either through `Standard CTI Allow Control of All Devices` or explicit **Controlled Devices** association.
+
 ## v0.2.0 - Reusable Scenario Validation
 
 Released: 2026-05-03

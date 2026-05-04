@@ -1,12 +1,12 @@
 # jtapi-phone-controller
 
-> Drive real Cisco phones from a Python CLI over CUCM JTAPI; no vendor client, no GUI, no pip dependencies. Bring your CUCM JTAPI jars.
+> Drive real Cisco phones and Jabber/CSF softphones from a Python CLI over CUCM JTAPI; no vendor client, no GUI, no pip dependencies. Bring your CUCM JTAPI jars.
 
 
-`jtapi-phone-controller` is a compact Python + Java bridge that lets you script real Cisco IP phones registered to Cisco Unified Communications Manager (CUCM) over JTAPI. Dial, hold, resume, transfer, conference, send DTMF, answer inbound calls, or run reusable JSON smoke scenarios — all from a single command line, all producing structured JSON output suitable for CI or test automation.
+`jtapi-phone-controller` is a compact Python + Java bridge that lets you script real Cisco IP phones and Jabber/CSF softphones registered to Cisco Unified Communications Manager (CUCM) over JTAPI. Dial, hold, resume, transfer, conference, send DTMF, answer inbound calls, or run reusable JSON smoke scenarios — all from a single command line, all producing structured JSON output suitable for CI or test automation.
 
 
-**Tested on CUCM 15 with Cisco hardphones.** Should work on any CUCM 12.5+ cluster with CTI-controllable phones, but live validation so far has been on CUCM 15.
+**Tested on CUCM 15 with Cisco 8875, Cisco 8811, and Cisco Jabber/CSF.** Should work on any CUCM 12.5+ cluster with CTI-controllable hard phones or softphones, but live validation so far has been on CUCM 15.
 
 **Cross-platform:**
 - **Linux (Oracle Linux 8 and 9):** Original development and smoke testing target.
@@ -19,11 +19,12 @@ If you run into any cross-platform issues, please open an issue — the goal is 
 |---|---|
 | CUCM 15 | Live validated |
 | CUCM 12.5+ | Expected, not fully matrix-tested |
-| Cisco hard phones | Live validated |
+| Cisco 8875 | Live validated |
+| Cisco 8811 | Live validated |
+| Cisco Jabber / CSF softphone | Live validated |
 | macOS arm64 | Tested |
 | Linux | Primary target |
 | Windows | Not tested |
-| Softphones | Not validated |
 
 ```bash
 # One-off
@@ -46,7 +47,7 @@ Most CUCM-adjacent test automation I've seen either:
 - uses a heavyweight commercial test harness (expensive, slow to onboard), or
 - stops at pure AXL/RIS introspection and never actually makes a call.
 
-This tool does the one thing those options skip: **drive a real registered CTI-controllable phone through ring, answer, hold, resume, and disconnect states under script control**, then emit a structured log you can assert against.
+This tool does the one thing those options skip: **drive a real registered CTI-controllable phone or softphone through ring, answer, hold, resume, and disconnect states under script control**, then emit a structured log you can assert against.
 
 I originally built it as part of a lab SBC upgrade certification framework — we needed repeatable, audit-ready evidence that real phones completed real calls end-to-end through each step of an upgrade. It's small, portable, and hopefully useful to anyone doing CUCM testing, SBC certification, or regression automation for voice infra.
 
@@ -106,8 +107,10 @@ Edit `config.json`:
 | `jtapi.provider` | IP or FQDN of the CUCM node running CTI Manager |
 | `jtapi.username` | The CUCM **Application User** you created for JTAPI (see [CUCM_SETUP.md](CUCM_SETUP.md)) |
 | `jtapi.password` | Literal password, or `env:VAR_NAME` to read from an env var |
-| `jtapi.targets[].device_name` | The `SEPxxxxxxxxxxxx` MAC of the phone |
-| `jtapi.targets[].directory_number` | The extension on that phone's first line |
+| `jtapi.targets[].device_name` | The CUCM device name, such as `SEPxxxxxxxxxxxx` for hard phones or `CSF...` for Jabber |
+| `jtapi.targets[].directory_number` | The extension on that target's first line |
+
+The CUCM application user must be allowed to control every target device. Either grant `Standard CTI Allow Control of All Devices`, or explicitly move each hard phone or Jabber/CSF device into the application user's **Controlled Devices** list.
 
 > **First time touching CUCM?** Read [CUCM_SETUP.md](CUCM_SETUP.md) before going further. It walks through creating the Application User, enabling CTI control on a phone, and verifying the CTI Manager is reachable.
 
@@ -163,6 +166,7 @@ Reusable scenarios live in [scenarios](scenarios):
 python phone.py run scenarios/basic_dial_smoke.json
 python phone.py run scenarios/hold_resume_smoke.json
 python phone.py run scenarios/dtmf_smoke.json
+python phone.py run scenarios/control_probe.json
 ```
 
 Use `--mock` when you want to validate the scenario file without a CUCM connection or Cisco JTAPI jars:
@@ -232,7 +236,7 @@ Valid `wait` states: `TALKING`, `HELD`, `RINGING`, `DISCONNECTED`, `ALERTING`.
 
 ## Validation
 
-The current helper was live-validated in an isolated CUCM lab with two Cisco hard phones. The public-safe validation notes are in [VALIDATION.md](VALIDATION.md).
+The current helper was live-validated in an isolated CUCM lab with Cisco 8875, Cisco 8811, and Cisco Jabber/CSF targets. The public-safe validation notes are in [VALIDATION.md](VALIDATION.md).
 
 The repository also includes a GitHub Actions smoke workflow that checks Python syntax, JSON scenario files, mock scenario execution, and the absence of private/generated files. Live JTAPI calls are not run in CI because they require a CUCM cluster, CTI credentials, Cisco JTAPI jars, and registered phones.
 
@@ -254,6 +258,8 @@ The repository also includes a GitHub Actions smoke workflow that checks Python 
 **`No TALKING event received`** — call connected at CUCM but JTAPI didn't see it. Check:
 - "Allow Control of Device from CTI" is enabled on the phone's line (CUCM Admin → Device → Phone → Line → Advanced).
 - The application user has the device associated to it.
+
+**`Terminal <device> is not in provider's domain`** — CTI Manager authenticated, but the application user cannot control that device. Add the phone or Jabber/CSF device to the application user's **Controlled Devices** list, or grant `Standard CTI Allow Control of All Devices`. Also confirm the line has "Allow Control of Device from CTI" enabled and that the target is registered.
 
 **Call left active after a crash** — pick up and hang up, or:
 ```bash

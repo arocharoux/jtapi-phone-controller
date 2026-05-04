@@ -8,16 +8,30 @@
     "_comment_lib_dir": "Place your Cisco JTAPI plugin jars in the lib/ folder next to this file.",
     "lib_dir": "lib",
 
-    "_comment_default_target": "Which phone to use when --target is not specified on the command line.",
-    "default_target": "my-phone",
+    "_comment_default_target": "Which target to use when --target is not specified on the command line.",
+    "default_target": "desk-8875",
 
     "targets": [
       {
-        "_comment": "Replace with your phone's details. device_name is the SEP MAC from CUCM Device Inventory.",
-        "name": "my-phone",
+        "_comment": "Hard phones usually use SEP plus the MAC from CUCM Device Inventory.",
+        "name": "desk-8875",
         "device_name": "SEP001122334455",
         "directory_number": "82001234",
-        "description": "My desk phone"
+        "description": "Cisco 8875 desk phone"
+      },
+      {
+        "_comment": "Another hard-phone target, useful for two-phone call-flow validation.",
+        "name": "lab-8811",
+        "device_name": "SEP001122334466",
+        "directory_number": "82005678",
+        "description": "Cisco 8811 lab phone"
+      },
+      {
+        "_comment": "Jabber softphones are commonly CSF devices. The application user must be allowed to control this exact device.",
+        "name": "jabber-csf",
+        "device_name": "CSFUSERID",
+        "directory_number": "82009999",
+        "description": "Cisco Jabber / CSF softphone"
       }
     ]
   }

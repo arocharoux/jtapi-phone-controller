@@ -10,7 +10,7 @@ If you're the kind of person who just wants the minimum checklist, jump to [TL;D
 
 ## The model, in one paragraph
 
-JTAPI talks to CUCM's **CTI Manager** service over TCP 2748. CTI Manager authenticates you as an **Application User** (not an end user) and lets you control any phone that is (a) associated to that application user, (b) enabled for CTI control on the line appearance, and (c) registered to a CUCM node where CTI Manager is running. Two roles on the application user give you everything you need: **Standard CTI Enabled** (you may use CTI) and **Standard CTI Allow Control of All Devices** (you may control any phone without per-device association). If you prefer a narrower blast radius, skip the second role and manually associate only the phones this tool should touch.
+JTAPI talks to CUCM's **CTI Manager** service over TCP 2748. CTI Manager authenticates you as an **Application User** (not an end user) and lets you control any phone or Jabber/CSF softphone that is (a) associated to that application user or covered by the all-devices CTI role, (b) enabled for CTI control on the line appearance, and (c) registered to a CUCM node where CTI Manager is running. Two roles on the application user give you everything you need: **Standard CTI Enabled** (you may use CTI) and **Standard CTI Allow Control of All Devices** (you may control any phone without per-device association). If you prefer a narrower blast radius, skip the second role and manually associate only the phones and softphones this tool should touch.
 
 ---
 
@@ -20,8 +20,8 @@ JTAPI talks to CUCM's **CTI Manager** service over TCP 2748. CTI Manager authent
 |---|---|---|
 | **Application User** `jtapi_user` | Non-human identity JTAPI authenticates as | User Management → Application User |
 | **Role assignments** | Grant the application user the right to use CTI and control devices | Same page, under Permissions Information |
-| **Phone association** (optional if you used "All Devices") | Scope control to specific phones | Same page, under Device Information |
-| **Line-level CTI flag** | Allow each phone's line to be driven by CTI | Device → Phone → Line → Advanced |
+| **Phone/Jabber association** (optional if you used "All Devices") | Scope control to specific phones and softphones | Same page, under Device Information |
+| **Line-level CTI flag** | Allow each phone or softphone line to be driven by CTI | Device → Phone → Line → Advanced |
 | **CTI Manager service running** | Accepts the JTAPI connection on port 2748 | Cisco Unified Serviceability → Control Center - Feature Services |
 
 ---
@@ -49,14 +49,14 @@ Pick the two groups that match your risk tolerance:
 - `Standard CTI Enabled`
 - `Standard CTI Allow Control of All Devices`
 
-With these two groups, the application user can control any phone in the cluster that is flagged for CTI control at the line level.
+With these two groups, the application user can control any phone or softphone in the cluster that is flagged for CTI control at the line level.
 
 ### Option B — Scoped (recommended for anything touching production)
 
 - `Standard CTI Enabled`
 - *(Do **not** add "Allow Control of All Devices")*
 
-Then, on the same Application User page, scroll to **Device Information** → **Available Devices** → move **only the specific phones** this tool is allowed to control into **Controlled Devices**. Everything else stays off-limits.
+Then, on the same Application User page, scroll to **Device Information** → **Available Devices** → move **only the specific hard phones and Jabber/CSF devices** this tool is allowed to control into **Controlled Devices**. Everything else stays off-limits.
 
 Save.
 
@@ -76,11 +76,11 @@ For this tool, **the two groups in Option A (or the one in Option B) are suffici
 
 ---
 
-## Step 3 — Enable CTI control on each phone's line
+## Step 3 — Enable CTI control on each phone or Jabber line
 
 Even with the "All Devices" role, a phone's **line** has to be individually flagged for CTI control. This is not a phone-level flag — it's a **line appearance** flag.
 
-For each phone you want to drive:
+For each hard phone or Jabber/CSF softphone you want to drive:
 
 1. **Device** → **Phone** → pick the phone.
 2. Click the first **Line [1]** under **Association Information**.
@@ -92,9 +92,11 @@ For each phone you want to drive:
 
 4. **Save**, then **Apply Config** on the phone if prompted.
 
-If the phone has multiple lines and you want to control any of them, repeat for each line.
+If the phone or softphone has multiple lines and you want to control any of them, repeat for each line.
 
-> **Gotcha — shared lines.** If the line is a shared-line appearance across multiple phones, CTI control must be enabled on **each** device's instance of that line.
+> **Gotcha — shared lines.** If the line is a shared-line appearance across multiple phones or softphones, CTI control must be enabled on **each** device's instance of that line.
+
+> **Jabber note.** Jabber for Windows/Mac is usually a `CSF...` device in CUCM. Treat it like any other phone target: it must be registered, its line must allow CTI control, and the application user must be allowed to control that exact CSF device unless you use the all-devices role.
 
 ---
 
@@ -158,6 +160,8 @@ CUCM Admin → User Management → Application User → Add New
   Permissions → Add to Access Control Group:
     ✓ Standard CTI Enabled
     ✓ Standard CTI Allow Control of All Devices
+  # Or, for scoped access, add each target SEP... / CSF... device
+  # under Device Information → Controlled Devices.
   Save.
 
 CUCM Admin → Device → Phone → <your phone> → Line [1]
@@ -171,6 +175,7 @@ From controller host:
   nc -vz <cucm> 2748  → succeeds
   cp config.example.json config.json
   # fill in provider, username, password, device_name, directory_number
+  # device_name can be SEP... for a hard phone or CSF... for Jabber
   python phone.py dial --destination 14155550123
 ```
 
@@ -191,7 +196,8 @@ From controller host:
 |---|---|
 | JTAPI returns "OUT_OF_SERVICE" immediately | Wrong `provider` IP, firewall blocking 2748, or CTI Manager not running |
 | Auth fails | Application user disabled, password rotated, account locked (CUCM locks after N failed logins — unlock via CUCM Admin) |
-| Connects but no phones visible | "All Devices" role not granted, **or** the phone isn't associated to the app user |
+| Connects but no phones visible | "All Devices" role not granted, **or** the phone/Jabber device isn't associated to the app user |
+| `Terminal <device> is not in provider's domain` | The application user cannot control that device. Add it to **Controlled Devices** or grant `Standard CTI Allow Control of All Devices`, then confirm the target is registered. |
 | Phone visible but `dial` hangs at `IDLE` | "Allow Control of Device from CTI" not checked on the line, or the line isn't registered |
 | `ALERTING` but never `TALKING` | The far end didn't answer, **or** the phone's line has call-forwarding to voicemail with a shorter timeout than your `timeout=` |
 | `No Terminal for device SEPxxx` | Phone isn't registered to the CUCM node CTI Manager is pointing at — check **Device → Phone → Status** |

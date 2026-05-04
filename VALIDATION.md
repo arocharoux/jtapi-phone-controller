@@ -4,19 +4,30 @@ This file records public-safe validation notes for the helper. It intentionally 
 
 ## Golden Validation
 
-Date: 2026-05-03
+Date: 2026-05-04
 
-Environment: isolated CUCM lab with two Cisco hard phones, one caller and one answer phone.
+Environment: isolated CUCM 15 lab with Cisco 8875, Cisco 8811, and Cisco Jabber/CSF targets.
+
+Validated device families:
+
+| Device family | Result | Notes |
+|---|---|---|
+| Cisco 8875 | PASS | Live JTAPI control validated |
+| Cisco 8811 | PASS | Live JTAPI control validated |
+| Cisco Jabber / CSF softphone | PASS | Live JTAPI control validated after adding the CSF device to the application user's controllable devices |
 
 Validation set:
 
-| Scenario | Mode | Result | Observed states |
-|---|---|---|---|
-| `basic_dial_smoke` | live | PASS | `IDLE -> CONNECTED -> DISCONNECTED` |
-| `hold_resume_smoke` | live | PASS | `IDLE -> CONNECTED -> HELD -> TALKING -> DISCONNECTED` |
-| `dtmf_smoke` | live | PASS | `IDLE -> CONNECTED -> DISCONNECTED` |
+| Scenario | Device coverage | Mode | Result | Observed states |
+|---|---|---|---|---|
+| `control_probe` | 8875, 8811, Jabber/CSF | live | PASS | `IDLE -> DISCONNECTED` |
+| `basic_dial_smoke` | hard phone | live | PASS | `IDLE -> CONNECTED -> DISCONNECTED` |
+| `hold_resume_smoke` | hard phone and Jabber/CSF | live | PASS | `IDLE -> CONNECTED -> HELD -> TALKING -> DISCONNECTED` |
+| `dtmf_smoke` | hard phone | live | PASS | `IDLE -> CONNECTED -> DISCONNECTED` |
 
-Both phones were inspected before and after the run and ended `IN_SERVICE`, registered, and `IDLE`.
+Validated targets were inspected before and after command-path testing and ended `IN_SERVICE`, registered, and `IDLE`.
+
+Application-user control is a required setup step. If the CUCM application user cannot control a device, JTAPI may fail with a provider-domain error even when the device exists in CUCM and has a valid line.
 
 Generated evidence should stay local and ignored by git.
 
