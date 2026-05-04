@@ -1,0 +1,22 @@
+{
+  "name": "hold_resume_smoke",
+  "description": "Dial the configured destination, place the call on hold, resume, then disconnect.",
+  "variables": {
+    "destination": "82001234",
+    "pre_hold_seconds": "10",
+    "hold_seconds": "5",
+    "post_resume_seconds": "5"
+  },
+  "timeout_seconds": 120,
+  "commands": [
+    {"cmd": "dial", "destination": "${destination}"},
+    {"cmd": "sleep", "seconds": "${pre_hold_seconds}"},
+    {"cmd": "hold"},
+    {"cmd": "sleep", "seconds": "${hold_seconds}"},
+    {"cmd": "resume"},
+    {"cmd": "sleep", "seconds": "${post_resume_seconds}"},
+    {"cmd": "disconnect"}
+  ],
+  "expect_status": "completed",
+  "expect_states": ["IDLE", "CONNECTED", "HELD", "TALKING", "DISCONNECTED"]
+}

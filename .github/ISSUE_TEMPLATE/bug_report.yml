@@ -1,0 +1,72 @@
+name: Bug report
+description: Report a JTAPI controller, CUCM setup, or scenario issue
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting an issue. Please sanitize hostnames, credentials, phone MACs, directory numbers, and generated evidence before posting.
+
+  - type: input
+    id: cucm-version
+    attributes:
+      label: CUCM version
+      description: Example: 15 SU, 14 SU, 12.5 SU
+    validations:
+      required: true
+
+  - type: input
+    id: phone-model
+    attributes:
+      label: Phone model or endpoint type
+      description: Example: Cisco 8875 hard phone, Cisco 8811 hard phone, Jabber, Webex App
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Controller host platform
+      description: Example: Oracle Linux 8, macOS arm64, Ubuntu 22.04
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Python and JDK versions
+      description: Example: Python 3.12.3, OpenJDK 17.0.x
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command run
+      description: Paste the exact command, with private values replaced by placeholders.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Doctor output
+      description: Paste sanitized `python phone.py doctor` output if available.
+      render: text
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Sanitized output or error
+      description: Paste the relevant stdout/stderr, with credentials, phone MACs, DNs, and hostnames removed.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Mention whether the phone is registered, CTI Manager is running, and whether `--mock` succeeds for the same scenario.

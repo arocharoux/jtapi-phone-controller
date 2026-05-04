@@ -1,0 +1,20 @@
+{
+  "name": "dtmf_smoke",
+  "description": "Dial the configured destination, send DTMF digits, then disconnect.",
+  "variables": {
+    "destination": "82001234",
+    "digits": "1234#",
+    "pre_dtmf_seconds": "10",
+    "post_dtmf_seconds": "3"
+  },
+  "timeout_seconds": 90,
+  "commands": [
+    {"cmd": "dial", "destination": "${destination}"},
+    {"cmd": "sleep", "seconds": "${pre_dtmf_seconds}"},
+    {"cmd": "send_dtmf", "digits": "${digits}"},
+    {"cmd": "sleep", "seconds": "${post_dtmf_seconds}"},
+    {"cmd": "disconnect"}
+  ],
+  "expect_status": "completed",
+  "expect_states": ["IDLE", "CONNECTED", "DISCONNECTED"]
+}

@@ -1,0 +1,37 @@
+# Real config with credentials — never commit this
+config.json
+.env
+.venv/
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Compiled Java output
+build/
+*.class
+
+# Vendor-provided Cisco JTAPI jars; download from your CUCM and keep local
+lib/*.jar
+!lib/README.md
+
+# Local IDE/runtime artifacts
+.classpath
+.project
+*.log
+CiscoJtapi*.log
+CiscoJtapi.index
+
+# Scenario run evidence
+runs/
+example-results/
+
+# Python/test cache
+.pytest_cache/
+.ruff_cache/
+
+# Python cache
+__pycache__/
+*.pyc

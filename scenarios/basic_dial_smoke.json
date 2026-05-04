@@ -1,0 +1,16 @@
+{
+  "name": "basic_dial_smoke",
+  "description": "Dial the configured destination, remain connected briefly, then disconnect.",
+  "variables": {
+    "destination": "82001234",
+    "connected_seconds": "5"
+  },
+  "timeout_seconds": 90,
+  "commands": [
+    {"cmd": "dial", "destination": "${destination}"},
+    {"cmd": "sleep", "seconds": "${connected_seconds}"},
+    {"cmd": "disconnect"}
+  ],
+  "expect_status": "completed",
+  "expect_states": ["IDLE", "CONNECTED", "DISCONNECTED"]
+}

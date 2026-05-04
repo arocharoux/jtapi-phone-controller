@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: CUCM setup guide
+    url: https://github.com/arocharoux/jtapi-phone-controller/blob/main/CUCM_SETUP.md
+    about: Review the required Application User, CTI permissions, phone association, and CTI Manager setup.

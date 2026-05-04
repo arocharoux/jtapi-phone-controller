@@ -1,0 +1,40 @@
+name: Smoke
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile Python files
+        run: python -m py_compile phone.py _runner.py example_basic_call.py
+
+      - name: Validate JSON files
+        run: |
+          python -m json.tool config.example.json >/dev/null
+          python -m json.tool scenarios/basic_dial_smoke.json >/dev/null
+          python -m json.tool scenarios/hold_resume_smoke.json >/dev/null
+          python -m json.tool scenarios/dtmf_smoke.json >/dev/null
+
+      - name: Run mock scenarios
+        run: |
+          python phone.py run scenarios/basic_dial_smoke.json --config config.example.json --mock --no-evidence
+          python phone.py run scenarios/hold_resume_smoke.json --config config.example.json --mock --no-evidence
+          python phone.py run scenarios/dtmf_smoke.json --config config.example.json --mock --no-evidence
+
+      - name: Clean generated Python cache
+        run: find . -type d -name __pycache__ -prune -exec rm -rf {} +
+
+      - name: Check for private or generated files
+        run: |
+          test -z "$(find . -type f \( -name '*.jar' -o -name 'config.json' -o -name '*.log' -o -name '.classpath' -o -name '.project' -o -name 'CiscoJtapi.index' -o -name '*.pyc' \) -print)"

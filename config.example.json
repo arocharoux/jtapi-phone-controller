@@ -1,0 +1,24 @@
+{
+  "_readme": "Copy this file to config.json. Use env:VAR_NAME for the password to keep credentials out of the file.",
+  "jtapi": {
+    "provider": "cucm.example.local",
+    "username": "jtapi_user",
+    "password": "env:CUCM_JTAPI_PASSWORD",
+
+    "_comment_lib_dir": "Place your Cisco JTAPI plugin jars in the lib/ folder next to this file.",
+    "lib_dir": "lib",
+
+    "_comment_default_target": "Which phone to use when --target is not specified on the command line.",
+    "default_target": "my-phone",
+
+    "targets": [
+      {
+        "_comment": "Replace with your phone's details. device_name is the SEP MAC from CUCM Device Inventory.",
+        "name": "my-phone",
+        "device_name": "SEP001122334455",
+        "directory_number": "82001234",
+        "description": "My desk phone"
+      }
+    ]
+  }
+}
