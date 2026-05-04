@@ -57,6 +57,7 @@ I originally built it as part of a lab SBC upgrade certification framework — w
 
 - **Setup doctor** — `python phone.py doctor` checks Python, Java, `javac`, config, JTAPI jars, target config, compile status, and CUCM CTI reachability.
 - **Six call scenarios** out of the box: `dial`, `hold-resume`, `transfer` (consult or blind), `conference`, `dtmf`, `answer`.
+- **Target coverage rollup** — `python phone.py coverage` proves configured targets are visible, registered, idle, and optionally runs a scenario across all targets.
 - **Reusable JSON scenarios** — `python phone.py run scenarios/hold_resume_smoke.json` runs repeatable smoke tests with pass/fail assertions.
 - **Mock mode** — validate scenario parsing, state assertions, and CI smoke checks without controlling a live phone.
 - **Structured JSON output** — every run emits an ordered `actions` log, a `states` timeline (IDLE → CONNECTED → HELD → DISCONNECTED), and raw JTAPI `events` for full audit trail.
@@ -131,6 +132,7 @@ Mock mode lets you validate the CLI, JSON scenario files, expected state asserti
 
 ```bash
 python phone.py run scenarios/hold_resume_smoke.json --mock --no-evidence
+python phone.py coverage --config config.example.json --mock --no-evidence
 ```
 
 Expected shape:
@@ -151,6 +153,7 @@ States: IDLE -> CONNECTED -> HELD -> TALKING -> DISCONNECTED
 |---|---|---|
 | `doctor` | `--target`, `--skip-network`, `--skip-compile`, `--timeout` | Check local setup and CTI reachability before placing calls |
 | `run` | `scenario_file`, `--mock`, `--var`, `--evidence-dir`, `--json` | Run reusable JSON scenarios with pass/fail assertions |
+| `coverage` | `--target`, `--scenario`, `--mock`, `--var`, `--evidence-dir`, `--json` | Run inspect coverage or a scenario across configured targets |
 | `dial` | `--destination`, `--seconds` | Dial, stay connected, hang up |
 | `hold-resume` | `--destination`, `--connected`, `--hold`, `--resume` | Dial, hold, resume, hang up |
 | `transfer` | `--destination`, `--to`, `--type {consult,blind}`, `--wait` | Dial then transfer |
@@ -182,6 +185,25 @@ python phone.py run scenarios/hold_resume_smoke.json --var destination=82001234 
 ```
 
 By default, live scenario runs write evidence JSON under `runs/`, which is ignored by git.
+
+### Target coverage
+
+Use `coverage` before placing live calls. With no scenario, it sends `inspect` to every configured target and checks for CTI visibility, registration, `IN_SERVICE`, and `IDLE` state without placing a call.
+
+```bash
+python phone.py coverage
+python phone.py coverage --target desk-8875 --target jabber-csf
+python phone.py coverage --mock --config config.example.json --no-evidence
+```
+
+To prove command execution across every configured target, pass a scenario. `control_probe` is the safest first live scenario because it inspects the device and sends an idempotent `disconnect` without dialing.
+
+```bash
+python phone.py coverage --scenario scenarios/control_probe.json
+python phone.py coverage --scenario scenarios/hold_resume_smoke.json --var destination=82001234
+```
+
+If multiple targets share a directory number, coverage records a warning. Inspect coverage can still prove each device by terminal name; unique DNs make call-flow proof cleaner.
 
 ---
 

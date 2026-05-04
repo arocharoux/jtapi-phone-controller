@@ -5,6 +5,7 @@
 ### Added
 
 - `scenarios/control_probe.json` for a no-call JTAPI command-path check using `inspect` plus idempotent `disconnect`.
+- `phone.py coverage` for all-target inspect coverage and optional multi-target scenario execution.
 
 ### Changed
 

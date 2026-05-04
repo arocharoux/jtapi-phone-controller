@@ -6,12 +6,13 @@ Run any of these scenarios against any phone in your config:
 
     doctor       Check the local JTAPI setup before placing a call
     run          Run a reusable JSON scenario with pass/fail assertions
-  dial         Dial a number, stay connected, hang up
-  hold-resume  Dial, hold, resume, hang up  (the classic)
-  transfer     Dial, then transfer to a second number (consult or blind)
-  conference   Dial, add a third party, stay in conference, hang up
-  dtmf         Dial a number and send DTMF tones (navigate an IVR, unlock a door, etc.)
-  answer       Wait for an inbound call, answer it, stay connected, hang up
+        coverage     Prove configured phone targets can be inspected or controlled
+        dial         Dial a number, stay connected, hang up
+        hold-resume  Dial, hold, resume, hang up  (the classic)
+        transfer     Dial, then transfer to a second number (consult or blind)
+        conference   Dial, add a third party, stay in conference, hang up
+        dtmf         Dial a number and send DTMF tones (navigate an IVR, unlock a door, etc.)
+        answer       Wait for an inbound call, answer it, stay connected, hang up
 
 Usage:
     cd jtapi-phone-controller
@@ -24,8 +25,9 @@ Usage:
     python phone.py transfer     --destination 82001234 --to 82005678 --type blind
     python phone.py conference   --destination 82001234 --to 82005678
     python phone.py dtmf         --destination 82001234 --digits 5551
-  python phone.py answer
+        python phone.py answer
     python phone.py run scenarios/hold_resume_smoke.json
+        python phone.py coverage
 
 Requires Python 3.9+ and a JDK (javac/java on PATH).
 No pip install needed — Python stdlib only. Live runs still need Cisco JTAPI jars in lib/.
@@ -495,6 +497,24 @@ def _mock_run_commands(commands: list[dict[str, Any]], target: str | None) -> di
         elif cmd == "answer":
             states.append({"at": _utc_now(), "state": "RINGING"})
             states.append({"at": _utc_now(), "state": "TALKING"})
+        elif cmd == "inspect":
+            events.append(
+                {
+                    "at": _utc_now(),
+                    "event": "terminal-diagnostics",
+                    "detail": "name="
+                    + (target or "mock-target")
+                    + ",state=IN_SERVICE,registration=IN_SERVICE,deviceState=IDLE,registered=true",
+                }
+            )
+            events.append(
+                {
+                    "at": _utc_now(),
+                    "event": "address-diagnostics",
+                    "detail": "state=IN_SERVICE,registration=IN_SERVICE,inServiceTerminals=1",
+                }
+            )
+            events.append({"at": _utc_now(), "event": "inspect-complete", "detail": target or "mock-target"})
         elif cmd == "hold":
             states.append({"at": _utc_now(), "state": "HELD"})
         elif cmd == "resume":
@@ -592,6 +612,249 @@ def _print_scenario_summary(summary: dict[str, Any], evidence_path: Path | None)
         print(f"Evidence: {evidence_path}")
 
 
+# ── Device coverage runner ───────────────────────────────────────────
+
+
+def _configured_target_names(config: dict[str, Any]) -> list[str]:
+    targets = config.get("jtapi", {}).get("targets", [])
+    if not isinstance(targets, list):
+        return []
+    names: list[str] = []
+    for target in targets:
+        if isinstance(target, dict) and str(target.get("name") or "").strip():
+            names.append(str(target["name"]))
+    return names
+
+
+def _targets_sharing_directory_number(config: dict[str, Any], target_name: str, directory_number: str) -> list[str]:
+    if not directory_number:
+        return []
+    peers: list[str] = []
+    targets = config.get("jtapi", {}).get("targets", [])
+    if not isinstance(targets, list):
+        return peers
+    for target in targets:
+        if not isinstance(target, dict):
+            continue
+        peer_name = str(target.get("name") or "")
+        peer_directory_number = str(target.get("directory_number") or "")
+        if peer_name and peer_name != target_name and peer_directory_number == directory_number:
+            peers.append(peer_name)
+    return peers
+
+
+def _action_names(result: dict[str, Any]) -> list[str]:
+    names: list[str] = []
+    for entry in result.get("actions", []):
+        if isinstance(entry, dict) and entry.get("action"):
+            names.append(str(entry["action"]).lower())
+    return names
+
+
+def _event_details(result: dict[str, Any], event_name: str) -> list[str]:
+    details: list[str] = []
+    for entry in result.get("events", []):
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get("event") or "") == event_name and entry.get("detail") is not None:
+            details.append(str(entry["detail"]))
+    return details
+
+
+def _evaluate_inspect_coverage(result: dict[str, Any]) -> tuple[bool, list[str], list[str]]:
+    failures: list[str] = []
+    observed_states = _state_names(result)
+    actual_status = str(result.get("status") or "unknown")
+    if actual_status != "completed":
+        failures.append(f"expected status 'completed', observed {actual_status!r}")
+        if result.get("error"):
+            failures.append(str(result["error"]))
+        return False, failures, observed_states
+
+    actions = _action_names(result)
+    if "inspect" not in actions:
+        failures.append("expected inspect action in bridge output")
+    if "IDLE" not in observed_states:
+        failures.append("expected target to report IDLE before coverage commands")
+
+    terminal_details = " ".join(_event_details(result, "terminal-diagnostics")).lower()
+    address_details = " ".join(_event_details(result, "address-diagnostics")).lower()
+    if not terminal_details:
+        failures.append("missing terminal diagnostics")
+    else:
+        if "registered=true" not in terminal_details:
+            failures.append("terminal is not reporting registered=true")
+        if "devicestate=idle" not in terminal_details:
+            failures.append("terminal device state is not IDLE")
+        if "state=in_service" not in terminal_details and "registration=in_service" not in terminal_details:
+            failures.append("terminal is not reporting IN_SERVICE")
+
+    if not address_details:
+        failures.append("missing address diagnostics")
+    elif "state=in_service" not in address_details and "registration=in_service" not in address_details:
+        failures.append("address is not reporting IN_SERVICE")
+
+    return not failures, failures, observed_states
+
+
+def _coverage_record(
+    *,
+    config: dict[str, Any],
+    target_name: str,
+    target: dict[str, Any],
+    mode: str,
+    passed: bool,
+    failures: list[str],
+    observed_states: list[str],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    directory_number = str(target.get("directory_number") or "")
+    shared_with = _targets_sharing_directory_number(config, target_name, directory_number)
+    warnings: list[str] = []
+    if shared_with:
+        warnings.append(
+            "directory number "
+            + directory_number
+            + " is also configured for "
+            + ", ".join(shared_with)
+            + "; inspect coverage can prove device registration now, but unique DNs make call-flow proof cleaner"
+        )
+    return {
+        "target_name": target_name,
+        "device_name": str(target.get("device_name") or ""),
+        "directory_number": directory_number,
+        "description": target.get("description"),
+        "mode": mode,
+        "passed": passed,
+        "failures": failures,
+        "warnings": warnings,
+        "observed_states": observed_states,
+        "result": result,
+    }
+
+
+def _print_coverage_summary(summary: dict[str, Any], evidence_path: Path | None) -> None:
+    print()
+    print("JTAPI device coverage")
+    print("---------------------")
+    print(f"Mode: {summary['mode']}")
+    print(f"Coverage: {summary['coverage_type']}")
+    print(f"Targets: {summary['passed_targets']}/{summary['total_targets']} passed")
+    print()
+    print(f"{'Result':<6} {'Target':<18} {'Device':<16} {'DN':<10} States")
+    print(f"{'-' * 6} {'-' * 18} {'-' * 16} {'-' * 10} {'-' * 30}")
+    for record in summary["records"]:
+        result_label = "PASS" if record["passed"] else "FAIL"
+        states = " -> ".join(record.get("observed_states") or [])
+        print(
+            f"{result_label:<6} "
+            f"{str(record.get('target_name') or '')[:18]:<18} "
+            f"{str(record.get('device_name') or '')[:16]:<16} "
+            f"{str(record.get('directory_number') or '')[:10]:<10} "
+            f"{states}"
+        )
+        for warning in record.get("warnings") or []:
+            print(f"  warning: {warning}")
+        for failure in record.get("failures") or []:
+            print(f"  failure: {failure}")
+    if evidence_path:
+        print()
+        print(f"Evidence: {evidence_path}")
+
+
+def _coverage_commands(args: argparse.Namespace) -> tuple[str, str, dict[str, Any] | None, list[dict[str, Any]], int | None]:
+    if args.scenario_file:
+        scenario_path = Path(args.scenario_file).resolve()
+        scenario = _load_scenario_file(scenario_path)
+        variables = _scenario_variables(scenario, args.variables)
+        rendered_scenario = _render_value(scenario, variables)
+        commands = _scenario_commands(rendered_scenario, {})
+        scenario_name = str(rendered_scenario.get("name") or scenario_path.stem)
+        timeout = int(rendered_scenario["timeout_seconds"]) if rendered_scenario.get("timeout_seconds") else None
+        return "scenario", scenario_name, rendered_scenario, commands, timeout
+
+    commands = [{"cmd": "inspect", "address_timeout": args.address_timeout}]
+    return "inspect", "device_coverage_inspect", None, commands, args.timeout
+
+
+def _run_coverage(args: argparse.Namespace) -> int:
+    config, config_path = load_config(args.config)
+    target_names = args.target_names or _configured_target_names(config)
+    if not target_names:
+        raise ValueError("No JTAPI targets are configured; add jtapi.targets or pass --target")
+
+    coverage_type, coverage_name, rendered_scenario, commands, scenario_timeout = _coverage_commands(args)
+    timeout = args.timeout if args.timeout is not None else scenario_timeout
+    mode = "mock" if args.mock else "live"
+    records: list[dict[str, Any]] = []
+
+    for target_name in target_names:
+        try:
+            target = resolve_target(config, target_name)
+            if args.mock:
+                result = _mock_run_commands(commands, target_name)
+            else:
+                result = run_commands(config, config_path, target_name, commands, timeout=timeout)
+            if rendered_scenario is None:
+                passed, failures, observed_states = _evaluate_inspect_coverage(result)
+            else:
+                passed, failures, observed_states = _evaluate_scenario(rendered_scenario, result)
+            records.append(
+                _coverage_record(
+                    config=config,
+                    target_name=target_name,
+                    target=target,
+                    mode=mode,
+                    passed=passed,
+                    failures=failures,
+                    observed_states=observed_states,
+                    result=result,
+                )
+            )
+        except Exception as exc:
+            records.append(
+                {
+                    "target_name": target_name,
+                    "device_name": "",
+                    "directory_number": "",
+                    "description": None,
+                    "mode": mode,
+                    "passed": False,
+                    "failures": [str(exc)],
+                    "warnings": [],
+                    "observed_states": [],
+                    "result": {"status": "failed", "error": str(exc)},
+                }
+            )
+
+    passed_targets = sum(1 for record in records if record["passed"] is True)
+    summary: dict[str, Any] = {
+        "generated_at": _utc_now(),
+        "name": coverage_name,
+        "coverage_type": coverage_type,
+        "mode": mode,
+        "target_names": target_names,
+        "commands": commands,
+        "scenario": rendered_scenario,
+        "total_targets": len(records),
+        "passed_targets": passed_targets,
+        "failed_targets": len(records) - passed_targets,
+        "passed": passed_targets == len(records),
+        "records": records,
+    }
+
+    evidence_path = None
+    if not args.no_evidence:
+        evidence_path = _write_evidence(summary, args.evidence_dir, coverage_name)
+        summary["evidence_path"] = str(evidence_path)
+
+    if args.json:
+        print(json.dumps(summary, indent=2))
+    else:
+        _print_coverage_summary(summary, evidence_path)
+    return 0 if summary["passed"] else 1
+
+
 def _run_scenario_file(args: argparse.Namespace) -> int:
     scenario_path = Path(args.scenario_file).resolve()
     scenario = _load_scenario_file(scenario_path)
@@ -685,6 +948,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  phone.py dtmf        --destination 82001234 --digits 5551\n"
             "  phone.py answer      --wait 60 --duration 30\n"
             "  phone.py run         scenarios/hold_resume_smoke.json\n"
+            "  phone.py coverage\n"
         ),
     )
     sub = root.add_subparsers(dest="scenario", metavar="SCENARIO")
@@ -723,6 +987,43 @@ def build_parser() -> argparse.ArgumentParser:
         dest="variables",
         metavar="KEY=VALUE",
         help="Override a scenario variable, for example --var destination=82001234",
+    )
+
+    # ── coverage ─────────────────────────────────────────────────────
+    p_coverage = sub.add_parser("coverage", help="Run an inspect or scenario proof across configured targets")
+    p_coverage.add_argument(
+        "--config", default=str(DEFAULT_CONFIG), help="Path to config.json (default: config.json in this directory)"
+    )
+    p_coverage.add_argument(
+        "--target",
+        action="append",
+        default=[],
+        dest="target_names",
+        help="Target phone name from config; repeat to test a subset (default: all targets)",
+    )
+    p_coverage.add_argument("--scenario", dest="scenario_file", help="Optional scenario JSON to run on each target")
+    p_coverage.add_argument("--timeout", type=int, default=None, help="Override Java helper timeout in seconds")
+    p_coverage.add_argument(
+        "--address-timeout",
+        type=int,
+        default=15,
+        help="Seconds INSPECT waits for address IN_SERVICE when no scenario is supplied (default: 15)",
+    )
+    p_coverage.add_argument(
+        "--evidence-dir",
+        default=str(DEFAULT_EVIDENCE_DIR),
+        help="Directory for coverage evidence JSON (default: runs/)",
+    )
+    p_coverage.add_argument("--no-evidence", action="store_true", help="Do not write an evidence JSON file")
+    p_coverage.add_argument("--json", action="store_true", help="Print the full coverage result JSON")
+    p_coverage.add_argument("--mock", action="store_true", help="Simulate coverage without controlling live phones")
+    p_coverage.add_argument(
+        "--var",
+        action="append",
+        default=[],
+        dest="variables",
+        metavar="KEY=VALUE",
+        help="Override a scenario variable when --scenario is supplied",
     )
 
     # ── dial ─────────────────────────────────────────────────────────
@@ -809,6 +1110,8 @@ def run(args: argparse.Namespace) -> None:
         raise SystemExit(_run_doctor(args))
     if args.scenario == "run":
         raise SystemExit(_run_scenario_file(args))
+    if args.scenario == "coverage":
+        raise SystemExit(_run_coverage(args))
 
     config, config_path = load_config(args.config)
 

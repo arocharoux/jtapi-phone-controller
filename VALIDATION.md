@@ -29,6 +29,8 @@ Validated targets were inspected before and after command-path testing and ended
 
 Application-user control is a required setup step. If the CUCM application user cannot control a device, JTAPI may fail with a provider-domain error even when the device exists in CUCM and has a valid line.
 
+Use `python phone.py coverage` for the first no-call live check in a new environment. Use `python phone.py coverage --scenario scenarios/control_probe.json` after inspect coverage passes to prove the command path across all configured targets without placing calls.
+
 Generated evidence should stay local and ignored by git.
 
 ## Public Release Notes

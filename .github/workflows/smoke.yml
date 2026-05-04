@@ -25,12 +25,16 @@ jobs:
           python -m json.tool scenarios/basic_dial_smoke.json >/dev/null
           python -m json.tool scenarios/hold_resume_smoke.json >/dev/null
           python -m json.tool scenarios/dtmf_smoke.json >/dev/null
+          python -m json.tool scenarios/control_probe.json >/dev/null
 
       - name: Run mock scenarios
         run: |
           python phone.py run scenarios/basic_dial_smoke.json --config config.example.json --mock --no-evidence
           python phone.py run scenarios/hold_resume_smoke.json --config config.example.json --mock --no-evidence
           python phone.py run scenarios/dtmf_smoke.json --config config.example.json --mock --no-evidence
+          python phone.py run scenarios/control_probe.json --config config.example.json --mock --no-evidence
+          python phone.py coverage --config config.example.json --mock --no-evidence
+          python phone.py coverage --config config.example.json --scenario scenarios/control_probe.json --mock --no-evidence
 
       - name: Clean generated Python cache
         run: find . -type d -name __pycache__ -prune -exec rm -rf {} +

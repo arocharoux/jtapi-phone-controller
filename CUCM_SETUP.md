@@ -146,6 +146,13 @@ export CUCM_JTAPI_PASSWORD='...'   # if you used env:CUCM_JTAPI_PASSWORD in conf
 python phone.py dial --destination 14155550123
 ```
 
+For a safer first check that does not place a call, run:
+
+```bash
+python phone.py coverage
+python phone.py coverage --scenario scenarios/control_probe.json
+```
+
 If the phone rings, you're done.
 
 ---
